@@ -1,9 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
-import {
-  View, Text, StyleSheet,
-  StatusBar, TextInput, TouchableOpacity,
-  Pressable
-} from 'react-native';
+import { View, Text, StatusBar, TextInput, TouchableOpacity, Pressable } from 'react-native';
+import "@/global.css"
 
 export default function App() {
   const [ip, setIp] = useState('192.168.1.2');
@@ -16,7 +13,6 @@ export default function App() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const currentAngle = useRef(90);
 
-  // 🔌 Verificar conexión
   const checkConnection = useCallback(async () => {
     setStatus('Verificando...');
     try {
@@ -28,44 +24,32 @@ export default function App() {
         setReachable(false);
         setStatus(`✗ Status: ${res.status}`);
       }
-    } catch (e) {
+    } catch {
       setReachable(false);
       setStatus('✗ Error de conexión');
     }
   }, [ip]);
 
-  // 📡 Enviar ángulo al ESP32
   const sendAngle = useCallback(async (val: number) => {
     const now = Date.now();
     if (sendingRef.current || now - lastSendTime.current < 20) return;
-
     sendingRef.current = true;
     lastSendTime.current = now;
-
-    try {
-      await fetch(`http://${ip}/angulo?valor=${val}`);
-    } catch {}
-
+    try { await fetch(`http://${ip}/angulo?valor=${val}`); } catch {}
     sendingRef.current = false;
   }, [ip]);
 
-  // 🎮 Movimiento continuo (tipo joystick)
   const move = useCallback((direction: number) => {
     if (intervalRef.current) return;
-  
     intervalRef.current = setInterval(() => {
       currentAngle.current += direction * 1;
-  
       if (currentAngle.current > 170) currentAngle.current = 170;
       if (currentAngle.current < 10) currentAngle.current = 10;
-  
       setAngle(Math.floor(currentAngle.current));
       sendAngle(Math.floor(currentAngle.current));
-  
     }, 25);
   }, [sendAngle]);
 
-  // 🛑 Detener movimiento
   const stopMoving = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -73,12 +57,20 @@ export default function App() {
     }
   }, []);
 
-  // 🎨 Color dinámico
-  const getColor = () => {
-    if (angle > 90) return '#00e5ff';
-    if (angle < 90) return '#ff4466';
-    return '#444';
-  };
+  const angleColor =
+    angle > 90 ? 'text-cyan-400' :
+    angle < 90 ? 'text-rose-500' :
+    'text-neutral-500';
+
+  const borderColor =
+    angle > 90 ? 'border-cyan-400' :
+    angle < 90 ? 'border-rose-500' :
+    'border-neutral-500';
+
+  const dotBg =
+    angle > 90 ? 'bg-cyan-400' :
+    angle < 90 ? 'bg-rose-500' :
+    'bg-neutral-500';
 
   const getDirection = () => {
     if (angle > 95) return '→ DERECHA';
@@ -87,164 +79,73 @@ export default function App() {
   };
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-[#0a0a0f] items-center pt-16 px-5">
       <StatusBar barStyle="light-content" />
-      <Text style={styles.title}>CAM CONTROL</Text>
 
-      {/* Conexión */}
-      <View style={styles.card}>
-        <Text style={styles.label}>IP DEL ESP32</Text>
-        <View style={styles.row}>
+      <Text className="text-2xl font-black text-cyan-400 tracking-[5px] mb-6">
+        CAM CONTROL
+      </Text>
+
+      <View className="w-full bg-[#13131a] rounded-2xl p-4 border border-[#1e1e2e] mb-7">
+        <Text className="text-neutral-600 text-[10px] tracking-[3px] mb-2">
+          IP DEL ESP32
+        </Text>
+
+        <View className="flex-row gap-2">
           <TextInput
-            style={styles.input}
+            className="flex-1 bg-[#0d0d14] text-white rounded-xl px-4 py-2.5 border border-[#2a2a3e]"
             value={ip}
-            onChangeText={(v) => {
-              setIp(v);
-              setReachable(false);
-              setStatus('Sin verificar');
-            }}
+            onChangeText={(v) => { setIp(v); setReachable(false); setStatus('Sin verificar'); }}
             placeholder="192.168.1.45"
             placeholderTextColor="#555"
           />
           <TouchableOpacity
-            style={[styles.btn, reachable && styles.btnConnected]}
+            className={`px-4 rounded-xl justify-center border ${reachable ? 'border-cyan-400 bg-[#1a1a2e]' : 'border-[#2a2a4e] bg-[#1a1a2e]'}`}
             onPress={checkConnection}
           >
-            <Text style={styles.btnText}>
+            <Text className="text-cyan-400 font-bold">
               {reachable ? 'OK' : 'CHECK'}
             </Text>
           </TouchableOpacity>
         </View>
-        <Text style={[styles.status, reachable ? styles.statusOk : styles.statusErr]}>
+
+        <Text className={`mt-2.5 ${reachable ? 'text-cyan-400' : 'text-rose-500'}`}>
           {status}
         </Text>
       </View>
 
-      {/* Estado */}
-      <View style={styles.speedBox}>
-        <Text style={[styles.speedNum, { color: getColor() }]}>
-          {angle}°
-        </Text>
-        <Text style={[styles.dirLabel, { color: getColor() }]}>
-          {getDirection()}
-        </Text>
+      <View className="items-center mb-10">
+        <Text className={`text-6xl font-black ${angleColor}`}>{angle}°</Text>
+        <Text className={`text-sm font-bold ${angleColor}`}>{getDirection()}</Text>
       </View>
 
-      {/* Controles */}
-      <View style={styles.buttonsArea}>
+      <View className="flex-row items-center gap-5">
 
-        {/* Derecha */}
         <Pressable
-          style={({ pressed }) => [
-            styles.controlBtn,
-            styles.btnAdelante,
-            pressed && styles.btnAdelantePressed,
-          ]}
-          onPressIn={() => move(2)}
-          onPressOut={stopMoving}
-        >
-          <Text style={styles.controlBtnIcon}>→</Text>
-          <Text style={styles.controlBtnLabel}>DERECHA</Text>
-        </Pressable>
-
-        <View style={[styles.centerDot, { borderColor: getColor() }]}>
-          <View style={[styles.centerDotInner, { backgroundColor: getColor() }]} />
-        </View>
-
-        {/* Izquierda */}
-        <Pressable
-          style={({ pressed }) => [
-            styles.controlBtn,
-            styles.btnReversa,
-            pressed && styles.btnReversaPressed,
-          ]}
+          className="w-40 h-24 rounded-2xl items-center justify-center border-2 border-rose-500 bg-[#1f0a0f] active:bg-[#400010]"
           onPressIn={() => move(-2)}
           onPressOut={stopMoving}
         >
-          <Text style={styles.controlBtnLabel}>IZQUIERDA</Text>
-          <Text style={styles.controlBtnIcon}>←</Text>
+          <Text className="text-xs text-neutral-400">IZQUIERDA</Text>
+          <Text className="text-3xl text-white">←</Text>
+        </Pressable>
+
+        <View className={`w-5 h-5 rounded-full border-2 items-center justify-center ${borderColor}`}>
+          <View className={`w-2 h-2 rounded-full ${dotBg}`} />
+        </View>
+
+        <Pressable
+          className="w-40 h-24 rounded-2xl items-center justify-center border-2 border-cyan-400 bg-[#0a1a1f] active:bg-[#003040]"
+          onPressIn={() => move(2)}
+          onPressOut={stopMoving}
+        >
+          <Text className="text-3xl text-white">→</Text>
+          <Text className="text-xs text-neutral-400">DERECHA</Text>
         </Pressable>
 
       </View>
 
-      <Text style={styles.hint}>Mantén presionado para mover</Text>
+      <Text className="text-[#2a2a3a] mt-5">Mantén presionado para mover</Text>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1, backgroundColor: '#0a0a0f',
-    alignItems: 'center', paddingTop: 60, paddingHorizontal: 20,
-  },
-  title: {
-    fontSize: 24, fontWeight: '900', color: '#00e5ff',
-    letterSpacing: 5, marginBottom: 24,
-  },
-  card: {
-    width: '100%', backgroundColor: '#13131a',
-    borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: '#1e1e2e', marginBottom: 28,
-  },
-  label: { color: '#444', fontSize: 10, letterSpacing: 3, marginBottom: 8 },
-  row: { flexDirection: 'row', gap: 10 },
-  input: {
-    flex: 1, backgroundColor: '#0d0d14', color: '#fff',
-    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10,
-    borderWidth: 1, borderColor: '#2a2a3e',
-  },
-  btn: {
-    backgroundColor: '#1a1a2e', paddingHorizontal: 14,
-    borderRadius: 10, justifyContent: 'center',
-    borderWidth: 1, borderColor: '#2a2a4e',
-  },
-  btnConnected: { borderColor: '#00e5ff' },
-  btnText: { color: '#00e5ff', fontWeight: '700' },
-  status: { marginTop: 10 },
-  statusOk: { color: '#00e5ff' },
-  statusErr: { color: '#ff4466' },
-
-  speedBox: { alignItems: 'center', marginBottom: 40 },
-  speedNum: { fontSize: 60, fontWeight: '900' },
-  dirLabel: { fontSize: 14, fontWeight: '700' },
-
-  buttonsArea: { alignItems: 'center', gap: 20 },
-
-  controlBtn: {
-    width: 160, height: 90,
-    borderRadius: 20, alignItems: 'center',
-    justifyContent: 'center', borderWidth: 2,
-  },
-  btnAdelante: {
-    backgroundColor: '#0a1a1f',
-    borderColor: '#00e5ff',
-  },
-  btnAdelantePressed: {
-    backgroundColor: '#003040',
-  },
-  btnReversa: {
-    backgroundColor: '#1f0a0f',
-    borderColor: '#ff4466',
-  },
-  btnReversaPressed: {
-    backgroundColor: '#400010',
-  },
-  controlBtnIcon: {
-    fontSize: 28, color: '#fff',
-  },
-  controlBtnLabel: {
-    fontSize: 12, color: '#aaa',
-  },
-
-  centerDot: {
-    width: 20, height: 20, borderRadius: 10,
-    borderWidth: 2, alignItems: 'center', justifyContent: 'center',
-  },
-  centerDotInner: {
-    width: 8, height: 8, borderRadius: 4,
-  },
-
-  hint: {
-    color: '#2a2a3a', marginTop: 20,
-  },
-});
